@@ -51,9 +51,6 @@ class StateKeeper<S : Any, E : Any>(
 
   private val stateFactory = object : State<S> {
 
-    override fun <T> mutableProperty(value: T): ReadWriteProperty<S, T> =
-        MutableStateProperty(value)
-
     override fun <T> property(value: T) = StateProperty<S, T>(value)
 
   }
@@ -112,9 +109,7 @@ class StateKeeper<S : Any, E : Any>(
 
 interface State<S : Any> {
 
-  fun <T> mutableProperty(value: T): ReadWriteProperty<S, T>
-
-  fun <T> property(value: T): ReadOnlyProperty<S, T>
+  fun <T> property(value: T): ReadWriteProperty<S, T>
 
 }
 
@@ -129,7 +124,7 @@ data class StateChangeEvent<T>(
     val value: T
 )
 
-private open class StateProperty<S : Any, T>(value: T) : ReadOnlyProperty<S, T> {
+private open class StateProperty<S : Any, T>(value: T) : ReadWriteProperty<S, T> {
 
   internal lateinit var property: Property<T>
 
@@ -137,16 +132,11 @@ private open class StateProperty<S : Any, T>(value: T) : ReadOnlyProperty<S, T> 
 
   override fun getValue(thisRef: S, property: KProperty<*>): T = valueRef.get()
 
-  override fun toString(): String = valueRef.toString()
-
-}
-
-private class MutableStateProperty<S : Any, T>(value: T)
-  : StateProperty<S, T>(value), ReadWriteProperty<S, T> {
-
   override fun setValue(thisRef: S, property: KProperty<*>, value: T) {
     this.property.value = value
   }
+
+  override fun toString(): String = valueRef.toString()
 
 }
 

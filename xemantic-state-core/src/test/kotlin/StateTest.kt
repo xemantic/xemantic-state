@@ -32,8 +32,8 @@ class StateTest {
 
   // given
   open class TestState(s: State<TestState>) {
-    var foo by s.mutableProperty(42)
-    var bar by s.mutableProperty("baz")
+    var foo by s.property(42)
+    var bar by s.property("baz")
     open val qux by s.property("thud")
   }
 
@@ -46,7 +46,7 @@ class StateTest {
   }
 
   open class MutableQuxTestState(s: State<TestState>): TestState(s) {
-    override var qux by s.mutableProperty("thud")
+    override var qux by s.property("thud")
   }
 
   @Test
