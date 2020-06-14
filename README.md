@@ -22,7 +22,7 @@ flowPanel {
 ```
 
 See [xemantic-kotlin-swing-dsl](https://github.com/xemantic/xemantic-kotlin-swing-dsl) project
-for more detail
+for more details
  
 ### In robotics
 
@@ -55,8 +55,8 @@ events.robotMode
 ```
 
 Once robot mode changes to `DOCKING`, command the Roomba robotic vacuum cleaner to seek the dock
-for charging. Roomba is not informing if the actual docking happens, therefore we wait until both
-- OI mode is switching to `PASSIVE` and the electric current is positive.
+for charging. Roomba is not informing if the actual docking happens, therefore we wait until both -
+OI mode is switching to `PASSIVE` and the electric current is positive.
 
 Imagine trying to model this as conditions in the busy look continuously reading robot state. 
 
