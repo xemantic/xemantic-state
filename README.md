@@ -66,9 +66,11 @@ Imagine trying to model this as conditions in the busy loop continuously reading
 
 ### transparent use of OSC protocol
 
-### remoting of MIDI control and having 
+### remoting of MIDI control 
 
 # TODO
+
+Some things are still missing:
 
 ## xemantic-state-generator module
 
