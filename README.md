@@ -58,7 +58,7 @@ Once robot mode changes to `DOCKING`, command the Roomba robotic vacuum cleaner 
 for charging. Roomba is not informing if the actual docking happens, therefore we wait until both -
 OI mode is switching to `PASSIVE` and the electric current is positive.
 
-Imagine trying to model this as conditions in the busy look continuously reading robot state. 
+Imagine trying to model this as conditions in the busy loop continuously reading robot state. 
 
 ## 2-way synchronization of state objects
 
