@@ -1,5 +1,5 @@
 /*
- * xemantic-state -a Kotlin library providing hierarchical object state as reactive Flow of events
+ * xemantic-state - a Kotlin library providing hierarchical object state as reactive Flow of events
  * Copyright (C) 2022 Kazimierz Pogoda
  *
  * This file is part of xemantic-state.

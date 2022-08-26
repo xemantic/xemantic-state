@@ -11,3 +11,4 @@ build
 /*.iml
 
 out
+/kotlin-js-store/yarn.lock

@@ -1,5 +1,5 @@
 /*
- * xemantic-state -a Kotlin library providing hierarchical object state as reactive Flow of events
+ * xemantic-state - a Kotlin library providing hierarchical object state as reactive Flow of events
  * Copyright (C) 2022 Kazimierz Pogoda
  *
  * This file is part of xemantic-state.
@@ -18,7 +18,8 @@
 
 plugins {
   `maven-publish`
-  kotlin("jvm") version "1.3.72" apply false
+  //alias(libs.plugins.kotlin.jvm) apply false
+  alias(libs.plugins.dokka)
 //  id("org.jetbrains.dokka") version "0.10.1"
 }
 
@@ -35,18 +36,25 @@ allprojects {
 
 subprojects {
 
+  /*
   apply {
     plugin("kotlin")
     plugin("maven-publish")
     plugin("org.jetbrains.dokka")
   }
 
+   */
+
+  /*
   configure<JavaPluginExtension> {
     sourceCompatibility = JavaVersion.VERSION_1_8
     targetCompatibility = JavaVersion.VERSION_1_8
     withSourcesJar()
   }
 
+   */
+
+  /*
   tasks.dokka {
     outputFormat = "html"
     outputDirectory = "$buildDir/javadoc"
@@ -59,6 +67,8 @@ subprojects {
     from(tasks.dokka)
   }
 
+
+   */
   /*
   publishing {
     publications {
