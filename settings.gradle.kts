@@ -19,5 +19,5 @@
 rootProject.name = "xemantic-state"
 
 include(
-    "xemantic-state-core"
+  "xemantic-state-core"
 )
