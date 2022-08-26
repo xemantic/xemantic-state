@@ -7,6 +7,7 @@ build
 !/.idea/copyright/
 !/.idea/dictionaries/
 !/.idea/codeStyles/
+!/.idea/google-java-format.xml
 /*.iml
 
 out
