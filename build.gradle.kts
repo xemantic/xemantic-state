@@ -26,10 +26,16 @@ plugins {
 allprojects {
 
   group = "com.xemantic.state"
-  version = "1.0-SNAPSHOT"
+  version = "2.0-SNAPSHOT"
 
   repositories {
     mavenCentral()
+  }
+
+  apply {
+    //plugin("kotlin")
+    plugin("maven-publish")
+    //plugin("org.jetbrains.dokka")
   }
 
 }
@@ -37,11 +43,7 @@ allprojects {
 subprojects {
 
   /*
-  apply {
-    plugin("kotlin")
-    plugin("maven-publish")
-    plugin("org.jetbrains.dokka")
-  }
+
 
    */
 
