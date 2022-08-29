@@ -16,9 +16,11 @@
  * If not, see <https://www.gnu.org/licenses/>.
  */
 
-rootProject.name = "xemantic-state"
+class OscStateTest {
 
-include(
-  "xemantic-state-core",
-  "xemantic-state-osc"
-)
+  @Test
+  fun shouldCreateOscState() {
+
+  }
+
+}
