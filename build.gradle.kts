@@ -18,9 +18,7 @@
 
 plugins {
   `maven-publish`
-  //alias(libs.plugins.kotlin.jvm) apply false
   alias(libs.plugins.dokka)
-//  id("org.jetbrains.dokka") version "0.10.1"
 }
 
 allprojects {
@@ -32,20 +30,9 @@ allprojects {
     mavenCentral()
   }
 
-  apply {
-    //plugin("kotlin")
-    plugin("maven-publish")
-    //plugin("org.jetbrains.dokka")
-  }
-
 }
 
 subprojects {
-
-  /*
-
-
-   */
 
   /*
   configure<JavaPluginExtension> {
@@ -54,9 +41,6 @@ subprojects {
     withSourcesJar()
   }
 
-   */
-
-  /*
   tasks.dokka {
     outputFormat = "html"
     outputDirectory = "$buildDir/javadoc"

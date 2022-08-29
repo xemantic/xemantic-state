@@ -47,7 +47,8 @@ kotlin {
   sourceSets {
     val commonMain by getting {
       dependencies {
-        implementation(libs.kotlin.coroutines)
+        api(project(":xemantic-state-core"))
+//        implementation(libs.kotlin.coroutines)
       }
     }
     val commonTest by getting {
@@ -57,8 +58,12 @@ kotlin {
         implementation(libs.kotest)
       }
     }
+    val jvmMain by getting {
+      dependencies {
+        implementation(libs.java.osc)
+      }
+    }
     /*
-    val jvmMain by getting
     val jvmTest by getting
     val jsMain by getting
     val jsTest by getting
