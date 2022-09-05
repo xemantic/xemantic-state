@@ -19,46 +19,66 @@
 package com.xemantic.state.osc
 
 import com.illposed.osc.MessageSelector
+import com.illposed.osc.OSCMessage
 import com.illposed.osc.OSCMessageEvent
-import com.illposed.osc.messageselector.OSCPatternAddressMessageSelector
 import com.illposed.osc.transport.OSCPortInBuilder
 import com.illposed.osc.transport.OSCPortOutBuilder
 import com.xemantic.state.State
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import mu.KotlinLogging
 import java.net.InetSocketAddress
 import kotlin.reflect.KType
+import kotlin.reflect.full.createType
 
 actual fun oscState(
-  ip: String?,
-  port: Int,
-  state: State<*>,
-  converters: Map<KType, Converter<*>>
-): OscState = JvmOscState(ip, port, state, converters)
+  builder: OscState.Builder.() -> Unit
+): OscState = JvmOscState(builder)
 
-private class JvmOscState(
-  ip: String?,
-  port: Int,
-  private val state: State<*>,
-  private val converters: Map<KType, Converter<*>>
-) : OscState {
+private class JvmOscState(builder: OscState.Builder.() -> Unit) : OscState {
 
-  val oscIn = OSCPortInBuilder().apply {
-    setLocalPort(port)
-    if (ip != null) {
-      setLocalSocketAddress(InetSocketAddress(ip, port))
+  private val logger = KotlinLogging.logger {}
+
+  private val config = OscState.Builder().also { builder(it) }
+
+  private val oscIn = OSCPortInBuilder().apply {
+    setLocalPort(config.port)
+    config.ip?.let {
+      setLocalSocketAddress(
+        InetSocketAddress(it, config.port)
+      )
     }
   }.build()
 
-//  private val oscOuts = mutableMapOf<ConnectionSpec, OSCPortOut>()
+  private val converters = config.converters
 
   init {
     oscIn.startListening()
   }
 
-  override fun <T> exportState(
+  private val exportedStateMap = mutableMapOf<String, State<*>>()
+
+  private val exportedConverters = mutableMapOf<String, OscPropertyConverter<Any, Any>>()
+
+  override fun <T> export(
     address: String,
-    emitAllTriggerAddress: String,
-    state: State<T>
+    state: State<T>,
+    emitAllProperty: String
   ) {
+    logger.debug {
+      "Exporting state at: udp://${config.ip ?: "localhost"}:${config.port}$address"
+    }
+    state.visitProperties { property ->
+      if (property.valueFlow != null) {
+        val type = property.kProperty.returnType
+        val converter = converters[type] ?: throw IllegalStateException(
+          "No converter for property: ${property.path}, type $type"
+        )
+        exportedConverters["$address/${property.path.joinToString("/")}"] =
+          converter as OscPropertyConverter<Any, Any>
+      }
+    }
+    exportedStateMap[address] = state
     oscIn.dispatcher.addListener(
       object : MessageSelector {
         override fun isInfoRequired() = false
@@ -66,60 +86,124 @@ private class JvmOscState(
           messageEvent.message.address.startsWith(address)
       }
     ) { event ->
+      logger.debug {
+        "Received message at: ${event.message.address}"
+      }
       val path = event.message.address
         .removePrefix("$address/")
         .split("/")
-      try {
-        val property = state.findProperty(path)
-        val type = property.kProperty.returnType
-        val converter = converters[type] as Converter<Any>?
-        if (converter != null) {
-          val value = converter.fromOsc(event.message.arguments)
-          state.update(
-            State.Change(
-              path = path,
-              source = "osc",
-              current = value,
-              previous = value
-            )
-          )
-        } else {
-          println("No converter for property: $property")
+
+      val args = event.message.arguments
+      val value = if (args.size == 1) args[0] else args
+      val converter = exportedConverters[event.message.address]
+      if (converter == null) {
+        logger.error { "Received message for unsupported address: ${event.message.address}" }
+      } else {
+        val decoded = exportedConverters[event.message.address]!!.decode(value)
+        val change = State.Change(
+          path = path,
+          source = "osc", // TODO how to get address of the source?
+          current = decoded,
+          previous = decoded
+        )
+        try {
+          state.update(change)
+        } catch (e: IllegalArgumentException) {
+          logger.error(e) { "Cannot update " }
         }
-      } catch (e: IllegalArgumentException) {
-        println(e)
       }
     }
   }
 
-  override fun emitChanges(
-    ip: String,
-    port: Int,
-    localStateAddress: String,
-    remoteStateAddress: String
-  ) {
-    oscIn.dispatcher.addListener(
-      OSCPatternAddressMessageSelector("/$localStateAddress/*")
-    ) {
-      val oscOut = OSCPortOutBuilder()
-        .setRemotePort(port)
-        .setRemoteSocketAddress(InetSocketAddress(ip, port))
-        .build()
+  override fun output(
+    builder: OscState.Output.Builder.() -> Unit
+  ) = object : OscState.Output {
+
+    private val config = OscState.Output.Builder().also { builder(it) }
+
+    private val oscOut = OSCPortOutBuilder().apply {
+      // TODO better handling of source ip
+      setRemotePort(config.port)
+      config.ip?.let {
+        setRemoteSocketAddress(
+          InetSocketAddress(it, config.port)
+        )
+      }
+    }.build()
+
+    override fun emitOnChanges(address: String, remoteAddress: String?) {
+      GlobalScope.launch { // TODO change the scope
+        exportedStateMap[address]!!.changeFlow.collect {
+          val propertyAddress = it.path.joinToString("/")
+          // TODO conversion here
+          val converter = exportedConverters["$address/$propertyAddress"]!!
+          val arg = converter.encode((it as State.Change<Any>).current)
+          oscOut.send(
+            OSCMessage(
+              "$address/$propertyAddress",
+              maybeWrap(arg)
+            )
+          )
+        }
+      }
     }
+
+    override fun close() {
+      oscOut.disconnect()
+      oscOut.close()
+    }
+
   }
 
   override fun close() {
+    logger.info { "Closing OSC at udp://${config.ip ?: "localhost"}:${config.port}" }
     oscIn.stopListening()
     oscIn.close()
-    // TODO finish close
-//    oscOuts.forEach {
-//      it.
-//    }
   }
 
-//  private data class ConnectionSpec(
-//    val host: String,
-//    val port: Int
-//  )
+}
+
+actual fun oscSender(
+  builder: OscSender.Builder.() -> Unit
+): OscSender = JvmOscSender(builder)
+
+private class JvmOscSender(
+  builder: OscSender.Builder.() -> Unit
+) : OscSender {
+
+  private val config = OscSender.Builder().also { builder(it) }
+
+  private val oscOut = OSCPortOutBuilder().apply {
+    // TODO better handling of source ip
+    setRemotePort(config.port)
+    config.ip?.let {
+      setRemoteSocketAddress(
+        InetSocketAddress(it, config.port)
+      )
+    }
+  }.build()
+
+  private val converters: Map<KType, OscPropertyConverter<Any, Any>> =
+    config.converters as Map<KType, OscPropertyConverter<Any, Any>>
+
+  init {
+    oscOut.connect()
+  }
+
+  override fun <T> send(address: String, value: T) {
+    val type: KType = value!!::class.createType()
+    val converter = converters[type] ?: throw IllegalStateException(
+      "No converter for type: $type"
+    )
+    val arg = converter.encode(value)
+    oscOut.send(OSCMessage(address, maybeWrap(arg)))
+  }
+
+  override fun close() {
+    oscOut.disconnect()
+    oscOut.close()
+  }
 
 }
+
+private fun <T> maybeWrap(x: T) = if (x is List<*>) x else listOf(x)

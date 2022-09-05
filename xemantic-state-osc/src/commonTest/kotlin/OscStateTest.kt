@@ -16,11 +16,68 @@
  * If not, see <https://www.gnu.org/licenses/>.
  */
 
+package com.xemantic.state.osc
+
+import com.xemantic.state.State
+import com.xemantic.state.state
+import kotlinx.coroutines.*
+import kotlin.test.Test
+import kotlin.test.BeforeTest
+import kotlin.test.AfterTest
+
+// example state entity shared in tests
+class SoundControls(state: State.Builder) {
+  var volume by state.property(100.0)
+  inner class FrequencyFilter(state: State.Builder) {
+    var low by state.property(20.0)
+    var high by state.property(20000.0)
+  }
+  val frequencyFilter by state.child { FrequencyFilter(it) }
+}
+
+@ExperimentalCoroutinesApi
 class OscStateTest {
 
+  private lateinit var oscState: OscState
+
+  private var oscSender: OscSender? = null
+
+  @BeforeTest
+  fun setUp() {
+    oscState = oscState {
+      port = 42001
+    }
+  }
+
+  @AfterTest
+  fun tearDown() {
+    if (oscSender != null) {
+      oscSender!!.close()
+    }
+    oscState.close()
+  }
+
+  /*
   @Test
   fun shouldCreateOscState() {
+    // given
+    val soundState = state { SoundControls(it) }
+    val sound = soundState.entity
+    oscSender = oscSender {
+      port = 42001
+    }
+    oscState.export("/sound", soundState)
 
+    // when
+    oscSender!!.send("/sound/volume", 50.0)
+
+    GlobalScope.launch {
+      delay(10000)
+    }
+
+    //sound.volume shouldBe 50.0
   }
+  */
+
 
 }

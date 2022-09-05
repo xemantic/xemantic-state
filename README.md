@@ -1,4 +1,11 @@
 # xemantic-state
+
+## TODO
+
+* add more test cases to state, for example for toString functions.
+
+Note: the documentation below is outdated and should be rewritted
+
 Small kotlin library for transforming state beans into reactive event streams. Even though small,
 it has multitude of use cases in my projects.
 
@@ -11,10 +18,10 @@ it has multitude of use cases in my projects.
 ```kotlin
 flowPanel {
   button("Dock") {
-    actionEvents.subscribe {
+    actionFlow.collect {
       state.robotMode = RobotMode.DOCKING
     }
-    events.robotMode.subscribe { mode ->
+    events.robotMode.collect { mode ->
       isEnabled = mode == RobotMode.FREE
     }
   }

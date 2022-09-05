@@ -18,7 +18,7 @@
 
 package com.xemantic.state
 
-import io.kotest.matchers.collections.shouldContain
+import io.kotest.assertions.throwables.shouldThrowWithMessage
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.*
@@ -29,66 +29,90 @@ import kotlin.test.Test
 @ExperimentalCoroutinesApi
 class StateTest {
 
-  @Test
-  fun shouldEmitStateChanges(): TestResult {
-    class RobotControls(state: StateBuilder) {
-      var motor: Double by state.property(0.0)
+  // example state entity shared in tests
+  class SoundControls(state: State.Builder) {
+    var volume by state.property(100.0)
+    inner class FrequencyFilter(state: State.Builder) {
+      var low by state.property(20.0)
+      var high by state.property(20000.0)
     }
-    val robotState = state { RobotControls(it) }
-    val robotControls = robotState.entity
+    val frequencyFilter by state.child { FrequencyFilter(it) }
+  }
 
+  @Test
+  fun shouldEmitChangesWhenStateEntityPropertiesAreChanged(): TestResult {
+    // given
+    val soundState = state { SoundControls(it) }
+    val sound = soundState.entity
+    val valueChanges = mutableListOf<State.Change<*>>()
+
+    // when
     return runTest {
-      val valueChanges = mutableListOf<ValueChange<*>>()
       val job = launch {
-        robotState.valueChangeFlow.collect {
+        soundState.changeFlow.collect {
           valueChanges.add(it)
         }
       }
       delay(1)
-      robotControls.motor = 42.0
+      sound.volume = 50.0
+      delay(1)
+      sound.frequencyFilter.high = 4200.0
       delay(1)
       job.cancelAndJoin()
-      valueChanges shouldHaveSize 1
-      valueChanges shouldContain ValueChange(
-        path = listOf("motor"),
-        source = robotState,
-        current = 42.0,
-        previous = 0.0
+
+      // then
+      valueChanges shouldBe listOf(
+        State.Change(
+          path = listOf("volume"),
+          source = soundState,
+          current = 50.0,
+          previous = 100.0
+        ),
+        State.Change(
+          path = listOf("frequencyFilter", "high"),
+          source = soundState,
+          current = 4200.0,
+          previous = 20000.0
+        )
       )
     }
   }
 
   @Test
-  fun shouldEmitMassiveAmountOfChanges(): TestResult {
+  fun shouldCollectAllTheChangesWhenBigAmountOfStateEntityPropertiesAreMutated(): TestResult {
+    // given
     val repeatCount = 10000
-    class CycleCounter(state: StateBuilder) {
+    class CycleCounter(state: State.Builder) {
       var cycle: Int by state.property(0)
     }
     val cycleState = state { CycleCounter(it) }
 
+    // when
     return runTest {
-      val valueChanges = mutableListOf<ValueChange<*>>()
+      val valueChanges = mutableListOf<State.Change<*>>()
       val job = launch {
-        cycleState.valueChangeFlow.collect {
+        cycleState.changeFlow.collect {
           valueChanges.add(it)
         }
       }
-      delay(1000)
+      delay(1)
       repeat(repeatCount) {
         cycleState.entity.cycle = it + 1
         delay(1)
       }
-      delay(1000)
+      delay(1)
       job.cancelAndJoin()
+
+      // then
       cycleState.entity.cycle shouldBe repeatCount
       valueChanges shouldHaveSize repeatCount
-      valueChanges[0] shouldBe ValueChange(
+      valueChanges[0] shouldBe State.Change(
         path = listOf("cycle"),
         source = cycleState,
         current = 1,
         previous = 0
       )
-      valueChanges[valueChanges.size - 1] shouldBe ValueChange(
+      valueChanges[valueChanges.size - 1] shouldBe State.Change(
         path = listOf("cycle"),
         source = cycleState,
         current = repeatCount,
@@ -98,42 +122,9 @@ class StateTest {
   }
 
   @Test
-  fun shouldTrackChangesOfHierarchicalState(): TestResult {
-    // given
-    class Controls(state: StateBuilder) {
-      var volume by state.property(100.0)
-      var frequency by state.property(440.0)
-      inner class Fade(state: StateBuilder) {
-        var factor by state.property(1.0)
-      }
-      val fade by state.child { Fade(it) }
-    }
-
-    val state = state { Controls(it) }
-    val controls = state.entity
-
-    return runTest {
-      val job = launch {
-        state.valueChangeFlow.collect {
-          println(it)
-        }
-      }
-      delay(1)
-      controls.volume = 10.0
-      controls.frequency = 880.0
-      controls.fade.factor = 42.0
-
-      delay(1)
-
-      job.cancelAndJoin()
-
-    }
-  }
-
-  @Test
   fun shouldDoubleBoundDistributedStateOfARobotAndItsRemoteControl(): TestResult {
     // given
-    class RobotControls(state: StateBuilder) {
+    class RobotControls(state: State.Builder) {
       var motorLeft: Double by state.property(0.0)
       var motorRight: Double by state.property(0.0)
     }
@@ -145,10 +136,10 @@ class StateTest {
     return runTest {
 
       val localJob = launch {
-        localState.valueChangeFlow.collect { remoteState.update(it) }
+        localState.changeFlow.collect { remoteState.update(it) }
       }
       val remoteJob = launch {
-        remoteState.valueChangeFlow.collect { localState.update(it) }
+        remoteState.changeFlow.collect { localState.update(it) }
       }
 
       delay(1)
@@ -168,6 +159,192 @@ class StateTest {
       localControls.motorRight shouldBe 84.0
       remoteControls.motorLeft shouldBe 42.0
       remoteControls.motorRight shouldBe 84.0
+    }
+  }
+
+  @Test
+  fun shouldEmitCurrentStateAsChanges(): TestResult {
+    // given
+    val soundState = state { SoundControls(it) }
+    val valueChanges = mutableListOf<State.Change<*>>()
+
+    // when
+    return runTest {
+      val job = launch {
+        soundState.changeFlow.collect {
+          valueChanges.add(it)
+        }
+      }
+      delay(1)
+      soundState.emit()
+      delay(1)
+      job.cancelAndJoin()
+
+      // then
+      valueChanges shouldBe listOf(
+        State.Change(
+          path = listOf("volume"),
+          source = soundState,
+          current = 100.0,
+          previous = 100.0
+        ),
+        State.Change(
+          path = listOf("frequencyFilter", "low"),
+          source = soundState,
+          current = 20.0,
+          previous = 20.0
+        ),
+        State.Change(
+          path = listOf("frequencyFilter", "high"),
+          source = soundState,
+          current = 20000.0,
+          previous = 20000.0
+        )
+      )
+    }
+  }
+
+  @Test
+  fun shouldVisitAllThePropertiesInTheOrderTheyWereDefined() {
+    // given
+    val state = state { SoundControls(it) }
+    val collector = mutableListOf<String>()
+
+    // when
+    state.visitProperties {
+      collector.add(it.path.joinToString("."))
+    }
+    collector shouldBe listOf(
+      "volume",
+      "frequencyFilter",
+      "frequencyFilter.low",
+      "frequencyFilter.high"
+    )
+  }
+
+  @Test
+  fun shouldFindAllNestedProperties() {
+    // given
+    val state = state { SoundControls(it) }
+
+    // when
+    state.findProperty(listOf("volume")).path shouldBe listOf("volume")
+    state.findProperty(listOf("frequencyFilter")).path shouldBe listOf("frequencyFilter")
+    state.findProperty(listOf("frequencyFilter", "low")).path shouldBe listOf("frequencyFilter", "low")
+    state.findProperty(listOf("frequencyFilter", "high")).path shouldBe listOf("frequencyFilter", "high")
+  }
+
+  @Test
+  fun shouldThrowExceptionWhenSearchingForPropertyWithEmptyPath() {
+    // given
+    val state = state { SoundControls(it) }
+
+    // when
+    shouldThrowWithMessage<IllegalArgumentException>("Cannot find property with empty path") {
+      state.findProperty(path = emptyList())
+    }
+  }
+
+  @Test
+  fun shouldThrowExceptionWhenSearchingForNonExistentProperty() {
+    // given
+    val state = state { SoundControls(it) }
+
+    // when
+    shouldThrowWithMessage<IllegalArgumentException>("No such property, path: [foo]") {
+      state.findProperty(listOf("foo"))
+    }
+  }
+
+  @Test
+  fun shouldAssignPropertiesWithMetadata() {
+    // given
+    class RobotControls(state: State.Builder) {
+      var speed: Double by state.property(0.0, 0.0..100.0)
+      var heading: Double by state.property(0.0, 0.0..360.0)
+    }
+
+    val state = state { RobotControls(it) }
+    val speedProperty = state.findProperty(listOf("speed"))
+    val headingProperty = state.findProperty(listOf("heading"))
+
+    // then
+    speedProperty.metadata shouldBe 0.0..100.0
+    headingProperty.metadata shouldBe 0.0..360.0
+  }
+
+  @Test
+  fun shouldEmitOnlyOneStateChangeIfPropertyValueIsChangedMultipleTimesWithTheSameValue(): TestResult {
+    // given
+    val soundState = state { SoundControls(it) }
+    val sound = soundState.entity
+    val valueChanges = mutableListOf<State.Change<*>>()
+
+    // when
+    return runTest {
+      val job = launch {
+        soundState.changeFlow.collect {
+          valueChanges.add(it)
+        }
+      }
+      delay(1)
+      sound.volume = 50.0
+      delay(1)
+      sound.volume = 50.0
+      delay(1)
+      job.cancelAndJoin()
+
+      // then
+      valueChanges shouldBe listOf(
+        State.Change(
+          path = listOf("volume"),
+          source = soundState,
+          current = 50.0,
+          previous = 100.0
+        )
+      )
+    }
+  }
+
+  @Test
+  fun shouldAllowNullableProperty(): TestResult {
+    // given
+    class Agent(state: State.Builder) {
+      var name: String? by state.property(null)
+    }
+    val agentState = state { Agent(it) }
+    val agent = agentState.entity
+    val valueChanges = mutableListOf<State.Change<*>>()
+
+    // when
+    return runTest {
+      val job = launch {
+        agentState.changeFlow.collect {
+          valueChanges.add(it)
+        }
+      }
+      delay(1)
+      agent.name = "Foo"
+      delay(1)
+      agent.name = null
+      delay(1)
+      job.cancelAndJoin()
+
+      // then
+      valueChanges shouldBe listOf(
+        State.Change(
+          path = listOf("name"),
+          source = agentState,
+          current = "Foo",
+          previous = null
+        ),
+        State.Change(
+          path = listOf("name"),
+          source = agentState,
+          current = null,
+          previous = "Foo"
+        )
+      )
     }
   }
 
