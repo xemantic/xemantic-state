@@ -1,3 +1,5 @@
+import org.jetbrains.dokka.gradle.DokkaTask
+
 /*
  * xemantic-state - a Kotlin library providing hierarchical object state as reactive Flow of events
  * Copyright (C) 2022 Kazimierz Pogoda
@@ -17,8 +19,8 @@
  */
 
 plugins {
-  `maven-publish`
   alias(libs.plugins.dokka)
+  id("maven-publish")
 }
 
 allprojects {
@@ -32,38 +34,23 @@ allprojects {
 
 }
 
+tasks.dokkaHtmlMultiModule.configure {
+  outputDirectory.set(buildDir.resolve("dokkaCustomMultiModuleOutput"))
+}
+
 subprojects {
 
-  /*
-  configure<JavaPluginExtension> {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
-    withSourcesJar()
+  apply {
+    plugin("maven-publish")
   }
 
-  tasks.dokka {
-    outputFormat = "html"
-    outputDirectory = "$buildDir/javadoc"
-  }
-
-  val dokkaJar by tasks.creating(Jar::class) {
-    group = JavaBasePlugin.DOCUMENTATION_GROUP
-    description = "Assembles Kotlin docs with Dokka"
-    archiveClassifier.set("javadoc")
-    from(tasks.dokka)
-  }
-
-
-   */
-  /*
-  publishing {
-    publications {
-      create<MavenPublication>("default") {
-        from(components["java"])
-        artifact(dokkaJar)
+  tasks.withType<DokkaTask>().configureEach {
+    dokkaSourceSets {
+      register("customSourceSet") {
+        sourceRoots.from(file("src/commonMain/kotlin"))
+        sourceRoots.from(file("src/jvmMain/kotlin"))
       }
     }
   }
-   */
 
 }

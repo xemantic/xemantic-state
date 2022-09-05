@@ -22,6 +22,7 @@ plugins {
 }
 
 kotlin {
+
   jvm {
     compilations.all {
       kotlinOptions.jvmTarget = libs.versions.jvmTarget.get()
@@ -30,11 +31,13 @@ kotlin {
       useJUnitPlatform()
     }
   }
+
   js(IR) {
     browser {
 
     }
   }
+
   val hostOs = System.getProperty("os.name")
   val isMingwX64 = hostOs.startsWith("Windows")
   val nativeTarget = when {
@@ -45,11 +48,14 @@ kotlin {
   }
 
   sourceSets {
+
     val commonMain by getting {
       dependencies {
-        implementation(libs.kotlin.coroutines)
+        // coroutine Flow is exposed by xemantic-state API
+        api(libs.kotlin.coroutines)
       }
     }
+
     val commonTest by getting {
       dependencies {
         implementation(libs.kotlin.test)
@@ -57,14 +63,7 @@ kotlin {
         implementation(libs.kotest)
       }
     }
-    /*
-    val jvmMain by getting
-    val jvmTest by getting
-    val jsMain by getting
-    val jsTest by getting
-    val nativeMain by getting
-    val nativeTest by getting
 
-     */
   }
+
 }
