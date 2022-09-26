@@ -5,13 +5,15 @@ kotlin = "1.7.10"
 jvmTarget = "11"
 kotlinxCoroutines = "1.6.4"
 kotlinxSerialization = "1.4.0"
-kotlinLogging = "2.1.23"
-slf4j = "2.0.0"
+kotlinLogging = "3.0.0"
+slf4j = "2.0.2"
 
-javaOsc = "0.8"
+xemanticOsc = "1.0-SNAPSHOT"
 
 kotest = "5.4.2"
 junitJupiter = "5.9.0"
+
+gradleVersionsPlugin = "0.42.0"
 
 [libraries]
 kotlin-reflect = { group = "org.jetbrains.kotlin", name = "kotlin-reflect", version.ref = "kotlin" }
@@ -19,7 +21,9 @@ kotlin-coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", 
 kotlin-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-logging = { module = "io.github.microutils:kotlin-logging", version.ref = "kotlinLogging" }
-java-osc = { module = "com.illposed.osc:javaosc-core", version.ref = "javaOsc" }
+
+xemantic-osc = { module = "com.xemantic.osc:xemantic-osc", version.ref = "xemanticOsc" }
+
 slf4j-api = { group = "org.slf4j", name = "slf4j-api", version.ref = "slf4j" }
 slf4j-simple = { group = "org.slf4j", name = "slf4j-simple", version.ref = "slf4j" }
 
@@ -32,3 +36,4 @@ kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 dokka = { id = "org.jetbrains.dokka", version.ref = "kotlin" }
+gradle-versions-plugin = { id = "com.github.ben-manes.versions", version.ref = "gradleVersionsPlugin" }
