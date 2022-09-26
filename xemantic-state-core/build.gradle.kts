@@ -16,17 +16,9 @@
  * If not, see <https://www.gnu.org/licenses/>.
  */
 
-plugins {
-  alias(libs.plugins.kotlin.multiplatform)
-  alias(libs.plugins.dokka)
-}
-
 kotlin {
 
   jvm {
-    compilations.all {
-      kotlinOptions.jvmTarget = libs.versions.jvmTarget.get()
-    }
     testRuns["test"].executionTask.configure {
       useJUnitPlatform()
     }

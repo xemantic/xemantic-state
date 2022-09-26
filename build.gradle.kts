@@ -1,5 +1,3 @@
-import org.jetbrains.dokka.gradle.DokkaTask
-
 /*
  * xemantic-state - a Kotlin library providing hierarchical object state as reactive Flow of events
  * Copyright (C) 2022 Kazimierz Pogoda
@@ -18,9 +16,14 @@ import org.jetbrains.dokka.gradle.DokkaTask
  * If not, see <https://www.gnu.org/licenses/>.
  */
 
+import org.jetbrains.dokka.gradle.DokkaTask
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 plugins {
   alias(libs.plugins.dokka)
+  alias(libs.plugins.kotlin.multiplatform) apply false
   id("maven-publish")
+  alias(libs.plugins.gradle.versions.plugin)
 }
 
 allprojects {
@@ -30,6 +33,7 @@ allprojects {
 
   repositories {
     mavenCentral()
+    mavenLocal()
   }
 
 }
@@ -41,7 +45,9 @@ tasks.dokkaHtmlMultiModule.configure {
 subprojects {
 
   apply {
+    plugin("kotlin-multiplatform")
     plugin("maven-publish")
+    plugin("org.jetbrains.dokka")
   }
 
   tasks.withType<DokkaTask>().configureEach {
@@ -51,6 +57,10 @@ subprojects {
         sourceRoots.from(file("src/jvmMain/kotlin"))
       }
     }
+  }
+
+  tasks.withType<KotlinCompile>().configureEach {
+    kotlinOptions.jvmTarget = libs.versions.jvmTarget.get()
   }
 
 }

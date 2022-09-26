@@ -16,17 +16,9 @@
  * If not, see <https://www.gnu.org/licenses/>.
  */
 
-plugins {
-  alias(libs.plugins.kotlin.multiplatform)
-  alias(libs.plugins.dokka)
-}
-
 kotlin {
 
   jvm {
-    compilations.all {
-      kotlinOptions.jvmTarget = libs.versions.jvmTarget.get()
-    }
     testRuns["test"].executionTask.configure {
       useJUnitPlatform()
     }
@@ -37,6 +29,7 @@ kotlin {
     val commonMain by getting {
       dependencies {
         api(project(":xemantic-state-core"))
+        api(libs.xemantic.osc)
       }
     }
 
@@ -50,15 +43,8 @@ kotlin {
 
     val jvmMain by getting {
       dependencies {
-        implementation(libs.java.osc)
         implementation(libs.kotlin.reflect)
         implementation(libs.kotlin.logging)
-      }
-      configurations {
-        all {
-          exclude("log4j", "log4j")
-          exclude("org.slf4j", "slf4j-log4j12")
-        }
       }
     }
 
