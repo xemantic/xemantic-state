@@ -42,7 +42,7 @@ class StateTest {
   @Test
   fun shouldEmitChangesWhenStateEntityPropertiesAreChanged(): TestResult {
     // given
-    val soundState = state { SoundControls(it) }
+    val soundState = State { SoundControls(it) }
     val sound = soundState.entity
     val valueChanges = mutableListOf<State.Change<*>>()
 
@@ -85,7 +85,7 @@ class StateTest {
     class CycleCounter(state: State.Builder) {
       var cycle: Int by state.property(0)
     }
-    val cycleState = state { CycleCounter(it) }
+    val cycleState = State { CycleCounter(it) }
 
     // when
     return runTest {
@@ -122,24 +122,28 @@ class StateTest {
   }
 
   @Test
-  fun shouldDoubleBoundDistributedStateOfARobotAndItsRemoteControl(): TestResult {
+  fun shouldDoubleBindDistributedStateOfARobotAndItsRemoteControl(): TestResult {
     // given
     class RobotControls(state: State.Builder) {
       var motorLeft: Double by state.property(0.0)
       var motorRight: Double by state.property(0.0)
     }
 
-    val localState = state { RobotControls(it) }
-    val remoteState = state { RobotControls(it) }
+    val localState = State { RobotControls(it) }
+    val remoteState = State { RobotControls(it) }
 
     // when
     return runTest {
 
       val localJob = launch {
-        localState.changeFlow.collect { remoteState.update(it) }
+        localState.changeFlow.collect {
+          remoteState.update(it)
+        }
       }
       val remoteJob = launch {
-        remoteState.changeFlow.collect { localState.update(it) }
+        remoteState.changeFlow.collect {
+          localState.update(it)
+        }
       }
 
       delay(1)
@@ -165,7 +169,7 @@ class StateTest {
   @Test
   fun shouldEmitCurrentStateAsChanges(): TestResult {
     // given
-    val soundState = state { SoundControls(it) }
+    val soundState = State { SoundControls(it) }
     val valueChanges = mutableListOf<State.Change<*>>()
 
     // when
@@ -207,7 +211,7 @@ class StateTest {
   @Test
   fun shouldVisitAllThePropertiesInTheOrderTheyWereDefined() {
     // given
-    val state = state { SoundControls(it) }
+    val state = State { SoundControls(it) }
     val collector = mutableListOf<String>()
 
     // when
@@ -225,34 +229,34 @@ class StateTest {
   @Test
   fun shouldFindAllNestedProperties() {
     // given
-    val state = state { SoundControls(it) }
+    val state = State { SoundControls(it) }
 
     // when
-    state.findProperty(listOf("volume")).path shouldBe listOf("volume")
-    state.findProperty(listOf("frequencyFilter")).path shouldBe listOf("frequencyFilter")
-    state.findProperty(listOf("frequencyFilter", "low")).path shouldBe listOf("frequencyFilter", "low")
-    state.findProperty(listOf("frequencyFilter", "high")).path shouldBe listOf("frequencyFilter", "high")
+    state.findProperty<Double>("volume").path shouldBe listOf("volume")
+    state.findProperty<SoundControls.FrequencyFilter>("frequencyFilter").path shouldBe listOf("frequencyFilter")
+    state.findProperty<Double>("frequencyFilter", "low").path shouldBe listOf("frequencyFilter", "low")
+    state.findProperty<Double>("frequencyFilter", "high").path shouldBe listOf("frequencyFilter", "high")
   }
 
   @Test
   fun shouldThrowExceptionWhenSearchingForPropertyWithEmptyPath() {
     // given
-    val state = state { SoundControls(it) }
+    val state = State { SoundControls(it) }
 
     // when
     shouldThrowWithMessage<IllegalArgumentException>("Cannot find property with empty path") {
-      state.findProperty(path = emptyList())
+      state.findProperty<Any>()
     }
   }
 
   @Test
   fun shouldThrowExceptionWhenSearchingForNonExistentProperty() {
     // given
-    val state = state { SoundControls(it) }
+    val state = State { SoundControls(it) }
 
     // when
     shouldThrowWithMessage<IllegalArgumentException>("No such property, path: [foo]") {
-      state.findProperty(listOf("foo"))
+      state.findProperty<Any>("foo")
     }
   }
 
@@ -264,9 +268,9 @@ class StateTest {
       var heading: Double by state.property(0.0, 0.0..360.0)
     }
 
-    val state = state { RobotControls(it) }
-    val speedProperty = state.findProperty(listOf("speed"))
-    val headingProperty = state.findProperty(listOf("heading"))
+    val state = State { RobotControls(it) }
+    val speedProperty = state.findProperty<Double>("speed")
+    val headingProperty = state.findProperty<Double>("heading")
 
     // then
     speedProperty.metadata shouldBe 0.0..100.0
@@ -276,7 +280,7 @@ class StateTest {
   @Test
   fun shouldEmitOnlyOneStateChangeIfPropertyValueIsChangedMultipleTimesWithTheSameValue(): TestResult {
     // given
-    val soundState = state { SoundControls(it) }
+    val soundState = State { SoundControls(it) }
     val sound = soundState.entity
     val valueChanges = mutableListOf<State.Change<*>>()
 
@@ -312,7 +316,7 @@ class StateTest {
     class Agent(state: State.Builder) {
       var name: String? by state.property(null)
     }
-    val agentState = state { Agent(it) }
+    val agentState = State { Agent(it) }
     val agent = agentState.entity
     val valueChanges = mutableListOf<State.Change<*>>()
 
