@@ -17,114 +17,258 @@
  */
 package com.xemantic.state.osc
 
+import com.xemantic.osc.*
 import com.xemantic.state.State
-import kotlin.reflect.KType
-import kotlin.reflect.typeOf
+import io.ktor.utils.io.core.*
+import kotlinx.coroutines.launch
+import mu.KotlinLogging
 
-interface OscState {
+fun statefulOsc(
+  build: StatefulOsc.Builder.() -> Unit
+) = StatefulOsc(build)
 
-  class Builder {
-    var ip: String? = null
-    var port: Int = 42001
-    var converters: Map<KType, OscPropertyConverter<*, *>> = defaultOscPropertyConverters
-  }
+class StatefulOsc(
+  private val build: Builder.() -> Unit
+) : Closeable {
 
-  fun <T> export(
-    address: String,
-    state: State<T>,
-    emitAllProperty: String = "emitAll"
+  private val logger = KotlinLogging.logger {}
+
+  internal class Export<T>(
+    val state: State<T>,
+    var subscribers: List<Subscriber>
   )
 
-  fun output(builder: Output.Builder.() -> Unit): Output
+  internal class Subscriber(
+    val receivingAddress: String,
+    val output: Osc.Output,
+  )
 
-  fun close()
-
-  interface Output {
-
-    class Builder {
-      var ip: String? = null
-      var port: Int = 42003
-    }
-
-    fun emitOnChanges(address: String, remoteAddress: String? = address)
-
-    fun close()
-
-  }
-
-}
-
-expect fun oscState(builder: OscState.Builder.() -> Unit): OscState
-
-interface OscSender {
+  internal data class Subscription(
+    val address: String,
+    val receivingAddress: String
+  )
 
   class Builder {
-    var ip: String? = null
-    var port: Int = 42001
-    var converters: Map<KType, OscPropertyConverter<*, *>> = defaultOscPropertyConverters
+
+    internal var oscBuild: Osc.Builder.() -> Unit = {}
+
+    fun osc(build: Osc.Builder.() -> Unit) {
+      oscBuild = build
+    }
+
+    fun <T> export(address: String, state: State<T>) {
+      exports[address] = Export(
+          state = state,
+          mutableListOf()
+      )
+    }
+    internal val exports = mutableMapOf<String, Export<*>>()
   }
 
-  fun <T> send(address: String, value: T)
+  private val builder = Builder().also { build(it) }
 
-  fun close()
+  private val exports = builder.exports
 
-}
+  val osc = osc {
+    converters += converters {
 
-// Useful in tests
-expect fun oscSender(builder: OscSender.Builder.() -> Unit): OscSender
-
-// This should be completely changed, and handled by external xemantic-osc, providing converters + OSC type indicator, to support also null
-class OscPropertyConverter<V, O>(
-  val encode: (x: V) -> O,
-  val decode: (x: O) -> V
-)
-
-fun oscPropertyConverters(
-  block: OscPropertyConvertersBuilder.() -> Unit
-): Map<KType, OscPropertyConverter<*, *>> {
-  val builder = OscPropertyConvertersBuilder()
-  block(builder)
-  return builder.converters.toMap()
-}
-
-class OscPropertyConvertersBuilder {
-
-  val converters =
-    mutableListOf<Pair<KType, OscPropertyConverter<*, *>>>()
-
-  inline fun <reified V, O> convert(
-    noinline encode: (x: V) -> O,
-    noinline decode: (x: O) -> V
-  ) {
-    converters.add(
-      Pair(
-        typeOf<V>(),
-        OscPropertyConverter(encode, decode)
+      convert<Subscription>(
+        encode = { x , output ->
+          output.writeTypeTag("ss")
+          output.writeOscString(x.address)
+          output.writeOscString(x.receivingAddress)
+        },
+        decode = { _, input ->
+          Subscription(
+            input.readOscString(),
+            input.readOscString()
+          )
+        }
       )
+
+    }
+    conversion<Subscription>("/subscribe")
+    conversion<String>("/unsubscribe")
+    exports.forEach { address, export ->
+      export.state.visitProperties { property ->
+        if (property.isLeaf) { // TODO change to isLeaf
+          conversion(
+            address + "/" + property.path.joinToString("/"),
+            property.kProperty.returnType
+          )
+        }
+      }
+    }
+    builder.oscBuild(this)
+  }
+
+  val messageFlowJob = osc.coroutineScope.launch {
+    osc.messageFlow.collect { message ->
+      try {
+        handleMessage(message)
+      } catch (e : Exception) {
+        logger.error(e) { "OSC Message error" }
+      }
+    }
+  }
+
+  init {
+    for (export in exports.values) {
+      osc.coroutineScope.launch {
+        export.state.changeFlow.collect { change ->
+          val propertyAddress = change.path.joinToString("/")
+          export.subscribers
+            .filter {
+              change.source != "${it.output.hostname}:${it.output.port}"
+            }
+            .forEach { subscriber ->
+              subscriber.output.send(
+                address = "${subscriber.receivingAddress}/$propertyAddress",
+                value = change.current
+              )
+            }
+        }
+      }
+    }
+  }
+
+  fun output(
+    build: Osc.Output.Builder.() -> Unit
+  ): Osc.Output = osc.output {
+    // TODO move to common function
+    conversion<Subscription>("/subscribe")
+    conversion<String>("/unsubscribe")
+    build(this)
+  }
+
+  private fun handleMessage(message: Osc.Message<*>) {
+    if (message.address.startsWith("/subscribe")) {
+      subscribeRemote(message)
+    } else if (message.address.startsWith("/unsubscribe")) {
+      unsubscribeRemote(message)
+    } else {
+      val path = message.address
+        .split("/")
+        .let { it.subList(1, it.size) }
+      val export = exports["/" + path.first()]
+      if (export != null) {
+        val propertyPath = path.subList(1, path.size)
+        val change = State.Change(
+          path = propertyPath,
+          source = "${message.hostname}:${message.port}",
+          current = message.value,
+          previous = message.value
+        )
+        export.state.update(change)
+      }
+    }
+  }
+
+  private fun subscribeRemote(message: Osc.Message<*>) {
+    val subscription = message.value as Subscription
+    subscribeRemote(
+      hostname = message.hostname,
+      port = message.port,
+      address = subscription.address,
+      receivingAddress = subscription.receivingAddress
     )
   }
 
+  fun subscribeRemote(
+    hostname: String,
+    port: Int,
+    address: String,
+    receivingAddress: String = address
+  ) {
+    logger.info {
+      "Subscribing $address -> $hostname:$port$receivingAddress"
+    }
+    val export = requireExport(address)
+    if (!export.subscribers.any {
+      it.receivingAddress == receivingAddress
+          && osc.hostname == hostname
+          && osc.port == port
+    }) {
+      export.subscribers += Subscriber(
+        receivingAddress,
+        osc.output {
+          this.hostname = hostname
+          this.port = port
+          export.state.visitProperties { property ->
+            if (property.isLeaf) {
+              conversion(
+                receivingAddress + "/" + property.path.joinToString("/"),
+                property.kProperty.returnType
+              )
+            }
+          }
+        }
+      )
+    } else {
+      logger.warn {
+        "Already subscribed $address -> $hostname:$port$receivingAddress"
+      }
+    }
+  }
+
+  private fun unsubscribeRemote(message: Osc.Message<*>) {
+    unsubscribeRemote(
+      hostname = message.hostname,
+      port = message.port,
+      address = message.value as String
+    )
+  }
+
+  fun unsubscribeRemote(
+    hostname: String,
+    port: Int,
+    address: String
+  ) {
+    logger.info {
+      "Unsubscribing $address -> $hostname:$port"
+    }
+    val export = requireExport(address)
+    val mutableSubscribers = export.subscribers.toMutableList()
+    val removed = mutableSubscribers.removeIf {
+      it.output.hostname == hostname
+          && it.output.port == port
+    }
+    if (!removed) {
+      logger.warn {
+        "Cannot unsubscribe, no subscriber for $address -> $hostname:$port"
+      }
+    }
+    export.subscribers = export.subscribers.toList()
+  }
+
+  override fun close() {
+    osc.close()
+  }
+
+  private fun requireExport(
+    address: String
+  ) = exports[address] ?: throw IllegalArgumentException(
+    "No state exported under address: $address"
+  )
+
 }
 
-val defaultOscPropertyConverters = oscPropertyConverters {
-  convert<Float, Float>(
-    { v -> v },
-    { o -> o }
-  )
-  convert<Boolean, Boolean>(
-    { v -> v },
-    { o -> o }
-  )
-  convert<Double, Float>(
-    { v -> v.toFloat() },
-    { o -> o.toDouble() }
-  )
-  convert<Int, Int>(
-    { v -> v },
-    { o -> o }
-  )
-  convert<String, String>(
-    { v -> v },
-    { o -> o }
-  )
+fun <T> Osc.ConversionBuilder.stateConversions(
+  address: String,
+  state: State<T>
+) {
+  state.visitProperties {
+    conversion(
+      "$address/${it.path.joinToString("/")}",
+      it.kProperty.returnType
+    )
+  }
+}
+
+fun Osc.Output.subscribe(address: String, receivingAddress: String = address) {
+  send("/subscribe", StatefulOsc.Subscription(address, receivingAddress))
+}
+
+fun Osc.Output.unsubscribe(address: String) {
+  send("/unsubscribe", address)
 }
