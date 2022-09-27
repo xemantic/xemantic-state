@@ -121,7 +121,7 @@ class State<T>(
 
     var value: V
       get() = if (isLeaf) _valueFlow!!.value else initialValue
-      set(value) { updateValue(value) }
+      set(value) { updateValue(value, changeSource) }
 
     /**
      * Value flow.
@@ -153,15 +153,12 @@ class State<T>(
         property: KProperty<*>,
         value: V
       ) {
-        updateValue(value)
+        updateValue(value, changeSource)
       }
 
     }
 
-    internal fun updateValue(
-      value: V,
-      source: Any = changeSource
-    ) {
+    internal fun updateValue(value: V, source: Any) {
       assertIsLeaf()
       _valueFlow!!.update { previous ->
         if (previous != value) {
@@ -192,7 +189,7 @@ class State<T>(
     }
 
     fun setInitialValue() {
-      updateValue(initialValue)
+      updateValue(initialValue, changeSource)
     }
 
     private fun assertIsLeaf() {
