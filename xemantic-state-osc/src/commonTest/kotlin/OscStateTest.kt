@@ -43,7 +43,7 @@ class OscStateTest {
   fun shouldCreateOscState() {
     // given
     val soundState = State { SoundControls(it) }
-    val statefulOsc = statefulOsc {
+    val statefulOsc = StatefulOsc {
       export("/sound", soundState)
     }
     val sound = soundState.entity
@@ -77,10 +77,10 @@ class OscStateTest {
     val soundA = soundStateA.entity
     val soundStateB = State { SoundControls(it) }
     val soundB = soundStateB.entity
-    val statefulOscA = statefulOsc {
+    val statefulOscA = StatefulOsc {
       export("/sound", soundStateA)
     }
-    val statefulOscB = statefulOsc {
+    val statefulOscB = StatefulOsc {
       export("/sound", soundStateB)
     }
     statefulOscA.subscribeRemote(

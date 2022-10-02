@@ -23,10 +23,6 @@ import io.ktor.utils.io.core.*
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
 
-fun statefulOsc(
-  build: StatefulOsc.Builder.() -> Unit
-) = StatefulOsc(build)
-
 class StatefulOsc(
   private val build: Builder.() -> Unit
 ) : Closeable {
